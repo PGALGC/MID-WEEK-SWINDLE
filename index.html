@@ -191,6 +191,16 @@
             background: var(--color-btn-success);
         }
         
+        .add-date-input {
+            width: 150px;
+            background-color: var(--color-bg-input);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border);
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
         .backup-btn {
             background: var(--color-btn-purple);
         }
@@ -1518,7 +1528,8 @@
                 <select id="weekSelector" title="Jump to Date">
                     <option value="">Jump to Date...</option>
                 </select>
-                <button id="addWeek" class="add-week-btn">Add New Week</button>
+                <input type="date" id="addDateInput" class="add-date-input" title="Select date to add new week">
+                <button id="addWeek" class="add-week-btn">Add Date</button>
             </div>
             
             <div class="data-controls">
@@ -1552,8 +1563,10 @@
                         </tbody>
                     </table>
                     <div id="emptyState" class="empty-state">
-                        <h3>No players or weeks added yet</h3>
-                        <p>Use the fields above to add your first player and a new week, then use the **Jump to Week** dropdown to select a week to view.</p>
+                        <h3>No dates added yet</h3>
+                        <p><strong>First:</strong> Select a date and click "Add Date".<br>
+                        <strong>Then:</strong> Add players using the "Add Player" button.<br>
+                        Players will appear in the table once a date exists.</p>
                     </div>
                 </div>
             </div>
@@ -2421,7 +2434,7 @@ Example:
             
             // Clear and repopulate dropdown
             const weekSelector = document.getElementById('weekSelector');
-            weekSelector.innerHTML = '<option value="">Jump to Week...</option>';
+            weekSelector.innerHTML = '<option value="">Jump to Date...</option>';
             
             // Populate Dropdown first
             trackerData.weeks.forEach((w, index) => {
@@ -2469,11 +2482,6 @@ Example:
             const weekContainer = document.createElement('div');
             weekContainer.className = 'week-header-container';
             
-            const weekLabel = document.createElement('div');
-            weekLabel.className = 'week-label';
-            weekLabel.textContent = `WEEK ${weekNumber}`;
-            weekContainer.appendChild(weekLabel);
-            
             const dateInput = document.createElement('input');
             dateInput.type = 'date';
             dateInput.className = 'week-date-input';
@@ -2505,7 +2513,7 @@ Example:
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'week-delete-btn';
             deleteBtn.textContent = '×';
-            deleteBtn.title = `Delete Week ${weekNumber}`;
+            deleteBtn.title = `Delete ${formatDateForDisplay(dateValue)}`;
             deleteBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 deleteWeek(weekIndex);
@@ -2788,11 +2796,26 @@ Example:
         }
         
         function addNewWeek() {
+            const dateInput = document.getElementById('addDateInput');
+            const selectedDate = dateInput.value;
+            
+            if (!selectedDate) {
+                showStatusMessage('Please select a date first', 'error');
+                return;
+            }
+            
+            // Check if date already exists
+            const existingWeek = trackerData.weeks.find(w => w.date === selectedDate);
+            if (existingWeek) {
+                showStatusMessage('This date already exists', 'error');
+                return;
+            }
+            
             const weekNumber = trackerData.weeks.length + 1;
             
             trackerData.weeks.push({
                 number: weekNumber,
-                date: new Date().toISOString().split('T')[0]
+                date: selectedDate
             });
             
             trackerData.players.forEach(player => {
@@ -2806,11 +2829,15 @@ Example:
             reconstructTable(currentVisibleWeekIndex);
             saveDataToStorage();
             
-            showStatusMessage(`Week ${weekNumber} added`, 'success');
+            // Clear the date input after adding
+            dateInput.value = '';
+            
+            showStatusMessage(`Date added: ${formatDateForDisplay(selectedDate)}`, 'success');
         }
         
         function deleteWeek(weekIndex) {
-            if (confirm(`Are you sure you want to delete Week ${weekIndex + 1}? All data for this week will be lost.`)) {
+            const dateToDelete = trackerData.weeks[weekIndex].date;
+            if (confirm(`Are you sure you want to delete ${formatDateForDisplay(dateToDelete)}? All data for this date will be lost.`)) {
                 
                 trackerData.weeks.splice(weekIndex, 1);
                 
@@ -2828,7 +2855,7 @@ Example:
                 reconstructTable(currentVisibleWeekIndex);
                 saveDataToStorage();
                 
-                showStatusMessage('Week deleted successfully', 'success');
+                showStatusMessage('Date deleted successfully', 'success');
             }
         }
         
