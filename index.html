@@ -1515,8 +1515,8 @@
             </div>
             
             <div class="week-controls">
-                <select id="weekSelector" title="Jump to Week">
-                    <option value="">Jump to Week...</option>
+                <select id="weekSelector" title="Jump to Date">
+                    <option value="">Jump to Date...</option>
                 </select>
                 <button id="addWeek" class="add-week-btn">Add New Week</button>
             </div>
@@ -2427,7 +2427,7 @@ Example:
             trackerData.weeks.forEach((w, index) => {
                 const option = document.createElement('option');
                 option.value = index + 1;
-                option.textContent = `Week ${index + 1} (${formatDateForDisplay(w.date)})`;
+                option.textContent = `${formatDateForDisplay(w.date)}`;
                 weekSelector.appendChild(option);
             });
 
@@ -2486,7 +2486,7 @@ Example:
                 const weekSelector = document.getElementById('weekSelector');
                 const option = weekSelector.querySelector(`option[value="${weekNumber}"]`);
                 if(option) {
-                    option.textContent = `Week ${weekNumber} (${formatDateForDisplay(this.value)})`;
+                    option.textContent = `${formatDateForDisplay(this.value)}`;
                 }
                 saveDataToStorage();
             });
