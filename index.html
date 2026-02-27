@@ -2375,7 +2375,7 @@
                          rulesTextArea.value = trackerData.rulesText;
                     } else {
                         // Ensure rulesText is initialized if old data didn't have it
-                        trackerData.rulesText = '';
+                        trackerData.rulesText = rulesTextArea.placeholder;
                         rulesTextArea.value = rulesTextArea.placeholder;
                     }
 
@@ -8135,6 +8135,7 @@
     </script>
 </body>
 </html>
+
 
 
 
