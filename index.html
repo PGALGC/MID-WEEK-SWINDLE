@@ -7005,7 +7005,11 @@
             const gross = parseInt(grossScore);
             if (isNaN(gross)) return 0;
             
-            const shots = playerPHC >= holeIndex ? 1 : 0; // Player gets a shot if PHC >= hole index
+            if (playerPHC >= 0) {
+    	    shots = playerPHC >= holeIndex ? 1 : 0;  // receives shots on hardest holes
+			} else {
+   			shots = holeIndex >= (19 + playerPHC) ? -1 : 0;  // gives shots on easiest holes
+			}
             const netScore = gross - shots;
             const scoreToPar = netScore - par;
             
@@ -8131,6 +8135,7 @@
     </script>
 </body>
 </html>
+
 
 
 
