@@ -1537,6 +1537,7 @@
                 <button id="captureWeek" class="capture-btn" title="Capture current week image">📸 Capture Week</button>
                 <button id="capturePHC" class="capture-btn" title="Capture Players PHC Information">📋 Capture PHC</button>
                 <button id="captureSummary" class="capture-btn" title="Capture complete weekly summary">📁 Full Summary</button>
+                <button id="generateReport" onclick="generateExecutiveReport()" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: #e2c97e; border: 1px solid #e2c97e; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(226,201,126,0.3);" title="Generate Presidential-grade Executive Report">📜 Generate Report</button>
                 <button id="backupData" class="backup-btn">Backup</button>
                 <button id="importData" class="import-btn">Import</button>
                 <button id="clearData" class="clear-btn">Clear All</button>
@@ -8008,6 +8009,560 @@
             }
         }
         
+        // ============================================================
+        //  EXECUTIVE REPORT GENERATOR
+        // ============================================================
+
+        // Show format-choice modal
+        function generateExecutiveReport() {
+            // Remove any existing modal
+            const old = document.getElementById('reportFormatModal');
+            if (old) old.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'reportFormatModal';
+            modal.style.cssText = `
+                position:fixed;top:0;left:0;width:100%;height:100%;
+                background:rgba(0,0,0,0.75);z-index:9999;
+                display:flex;align-items:center;justify-content:center;
+                font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+            `;
+            modal.innerHTML = `
+                <div style="
+                    background:#ffffff;border-radius:16px;padding:40px 36px;
+                    max-width:420px;width:90%;text-align:center;
+                    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+                    animation: rfmIn 0.25s ease;
+                ">
+                    <style>@keyframes rfmIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}</style>
+                    <div style="font-size:36px;margin-bottom:12px;">📋</div>
+                    <h2 style="margin:0 0 6px;font-size:20px;color:#1a2235;font-weight:700;">Export Report</h2>
+                    <p style="margin:0 0 28px;font-size:13px;color:#6b7a8d;">Choose your preferred format</p>
+                    <div style="display:flex;gap:14px;justify-content:center;margin-bottom:20px;">
+                        <button onclick="buildReport('pdf')" style="
+                            flex:1;padding:18px 12px;border:2px solid #e8ecf2;
+                            border-radius:12px;background:#f8fafc;cursor:pointer;
+                            transition:all 0.2s;font-size:13px;color:#1a2235;font-weight:600;
+                        " onmouseover="this.style.borderColor='#2563eb';this.style.background='#eff6ff'"
+                           onmouseout="this.style.borderColor='#e8ecf2';this.style.background='#f8fafc'">
+                            <div style="font-size:28px;margin-bottom:8px;">📄</div>
+                            PDF
+                            <div style="font-size:11px;color:#8a9ab0;font-weight:400;margin-top:4px;">Print-quality document</div>
+                        </button>
+                        <button onclick="buildReport('jpeg')" style="
+                            flex:1;padding:18px 12px;border:2px solid #e8ecf2;
+                            border-radius:12px;background:#f8fafc;cursor:pointer;
+                            transition:all 0.2s;font-size:13px;color:#1a2235;font-weight:600;
+                        " onmouseover="this.style.borderColor='#16a34a';this.style.background='#f0fdf4'"
+                           onmouseout="this.style.borderColor='#e8ecf2';this.style.background='#f8fafc'">
+                            <div style="font-size:28px;margin-bottom:8px;">🖼️</div>
+                            JPEG
+                            <div style="font-size:11px;color:#8a9ab0;font-weight:400;margin-top:4px;">Share as image</div>
+                        </button>
+                    </div>
+                    <button onclick="document.getElementById('reportFormatModal').remove()" style="
+                        background:none;border:none;color:#8a9ab0;font-size:13px;
+                        cursor:pointer;padding:6px 12px;border-radius:6px;
+                    " onmouseover="this.style.color='#1a2235'" onmouseout="this.style.color='#8a9ab0'">
+                        Cancel
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        }
+
+        function buildReport(format) {
+            document.getElementById('reportFormatModal').remove();
+            const weekNumber = (currentVisibleWeekIndex || 0) + 1;
+            const reportHTML = buildReportHTML();
+
+            if (format === 'pdf') {
+                const win = window.open('', '_blank');
+                win.document.write(reportHTML);
+                win.document.close();
+                win.addEventListener('load', () => { setTimeout(() => win.print(), 600); });
+            } else {
+                // JPEG: open report in a real new window so it renders fully with its own CSS/fonts,
+                // then inject html2canvas into that window to capture and download itself.
+                showStatusMessage('Generating JPEG — opening report window...', 'success');
+
+                // Build the JPEG-mode HTML: no print button, auto-captures on load
+                const jpegHTML = reportHTML
+                    .replace('<button class="export-btn"', '<button class="export-btn" style="display:none"')
+                    .replace('</body>', `
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
+<script>
+(function() {
+    function doCapture() {
+        document.body.style.background = '#f0f4f8';
+
+        var page = document.querySelector('.page');
+        var sec3 = document.getElementById('section-all-players');
+
+        if (!page || !sec3) {
+            alert('Could not find report sections. Please try again.');
+            return;
+        }
+
+        page.style.boxShadow = 'none';
+
+        var msg = document.createElement('div');
+        msg.id = 'cap-msg';
+        msg.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#0f3d6e;color:#fff;padding:10px 24px;border-radius:8px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
+        msg.textContent = '📷 Capturing report...';
+        document.body.appendChild(msg);
+
+        // --- Build All Players wrapper (off-screen) ---
+        var wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;background:#ffffff;padding:28px 44px 36px;font-family:Inter,sans-serif;width:860px;';
+        var miniHdr = document.createElement('div');
+        miniHdr.style.cssText = 'background:linear-gradient(135deg,#0f3d6e,#1a5c9e);color:#fff;padding:18px 24px;margin:-28px -44px 24px;';
+        miniHdr.innerHTML = '<div style="font-size:10px;letter-spacing:3px;opacity:0.7;margin-bottom:4px;font-weight:600;">MID-WEEK GOLF SWINDLE &nbsp;·&nbsp; WEEK ${weekNumber}</div><div style="font-size:20px;font-weight:700;font-family:Merriweather,Georgia,serif;">All Players — Season Overview</div>';
+        wrapper.appendChild(miniHdr);
+        var clonedSec = sec3.cloneNode(true);
+        clonedSec.style.display = 'block';
+        clonedSec.style.marginTop = '0';
+        wrapper.appendChild(clonedSec);
+        var foot = document.createElement('div');
+        foot.style.cssText = 'margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between;';
+        foot.innerHTML = '<span>Mid-Week Golf Swindle &nbsp;·&nbsp; Season Overview</span><span>Generated: ' + new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}) + '</span>';
+        wrapper.appendChild(foot);
+        document.body.appendChild(wrapper);
+
+        // Hide Section III from the main page capture
+        sec3.style.display = 'none';
+
+        var opts = function(el) {
+            var w = el.offsetWidth || 860;
+            var h = el.scrollHeight || el.offsetHeight;
+            return {
+                backgroundColor: '#ffffff',
+                scale: 1,
+                useCORS: true,
+                allowTaint: false,
+                logging: false,
+                width: w, height: h,
+                scrollX: 0, scrollY: 0,
+                windowWidth: w, windowHeight: h,
+                ignoreElements: function(e) {
+                    return e.tagName === 'CANVAS' && (e.width === 0 || e.height === 0);
+                }
+            };
+        };
+
+        setTimeout(function() {
+            // Capture main page (no Section III)
+            html2canvas(page, opts(page)).then(function(c1) {
+                msg.textContent = '📷 Capturing all players...';
+                setTimeout(function() {
+                    // Capture all-players wrapper
+                    html2canvas(wrapper, opts(wrapper)).then(function(c2) {
+                        document.body.removeChild(wrapper);
+
+                        // --- Stitch side by side ---
+                        var gap = 20;
+                        var totalW = c1.width + gap + c2.width;
+                        var totalH = Math.max(c1.height, c2.height);
+
+                        var combined = document.createElement('canvas');
+                        combined.width  = totalW;
+                        combined.height = totalH;
+                        var ctx = combined.getContext('2d');
+
+                        // Light grey background between panels
+                        ctx.fillStyle = '#e2e8f0';
+                        ctx.fillRect(0, 0, totalW, totalH);
+
+                        // Draw left panel (main report) top-aligned
+                        ctx.drawImage(c1, 0, 0);
+
+                        // Draw right panel (all players) top-aligned
+                        ctx.drawImage(c2, c1.width + gap, 0);
+
+                        // Download single combined image
+                        var link = document.createElement('a');
+                        link.download = 'golf-swindle-week${weekNumber}-report.jpg';
+                        link.href = combined.toDataURL('image/jpeg', 0.95);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+
+                        document.body.removeChild(msg);
+                        var done = document.createElement('div');
+                        done.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:10px 24px;border-radius:8px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);cursor:pointer;';
+                        done.textContent = '✅ Combined JPEG downloaded — click to close';
+                        done.onclick = function() { window.close(); };
+                        document.body.appendChild(done);
+
+                    }).catch(function(err) { document.body.removeChild(wrapper); alert('Capture 2 failed: ' + err.message); });
+                }, 400);
+            }).catch(function(err) { document.body.removeChild(wrapper); alert('Capture 1 failed: ' + err.message); });
+        }, 300);
+    }
+
+    if (document.readyState === 'complete') {
+        setTimeout(doCapture, 1200);
+    } else {
+        window.addEventListener('load', function() { setTimeout(doCapture, 1200); });
+    }
+})();
+<\/script>
+</body>`);
+
+                const win = window.open('', '_blank');
+                win.document.write(jpegHTML);
+                win.document.close();
+            }
+        }
+
+        function buildReportHTML() {
+            // Gather data from trackerData
+            const weeks = trackerData.weeks || [];
+            const players = trackerData.players || [];
+            const results = trackerData.results || {};
+            const weekNumber = currentVisibleWeekIndex + 1;
+            const currentWeek = weeks[currentVisibleWeekIndex] || {};
+            const dateText = currentWeek.date ? formatDateForDisplay(currentWeek.date) : new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'long',year:'numeric'});
+
+            // (data already gathered above)
+
+            // Build weekly leaderboard
+            const thisWeekPlayers = players.filter(p => {
+                const wd = p.weeks[currentVisibleWeekIndex];
+                return wd && parseFloat(wd.invested) === 5.0 && wd.score;
+            }).map(p => {
+                const wd = p.weeks[currentVisibleWeekIndex];
+                return {
+                    name: p.name,
+                    phcNext: p.phc || '-',
+                    todayPhc: wd.phc || '-',
+                    score: parseFloat(wd.score) || 0,
+                    prize: parseFloat(wd.prize) || 0,
+                    invested: parseFloat(wd.invested) || 0
+                };
+            }).sort((a,b) => b.score - a.score);
+
+            // Assign positions
+            thisWeekPlayers.forEach((p, i) => { p.position = i + 1; });
+
+            const totalPot = thisWeekPlayers.reduce((s, p) => s + p.invested, 0);
+            const totalPrizesGiven = thisWeekPlayers.reduce((s, p) => s + p.prize, 0);
+
+            // Leaderboard rows
+
+            const leaderboardRows = thisWeekPlayers.map((p, i) => {
+                const pos = i + 1;
+                const isPodium = pos <= 3;
+                const prizeText = p.prize > 0 ? `£${p.prize.toFixed(2)}` : '—';
+                const posClass = pos===1?'pos-gold':pos===2?'pos-silver':pos===3?'pos-bronze':'';
+                const rowStyle = pos===1?'background:#fffbeb;':pos===2?'background:#f8fafc;':pos===3?'background:#fff7f0;':'';
+                return `
+                <tr style="${rowStyle}border-bottom:1px solid #e2e8f0;">
+                    <td style="text-align:center;" class="${posClass}">${pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':pos}</td>
+                    <td style="font-weight:${isPodium?'700':'400'};color:#1e293b;">${p.name}</td>
+                    <td style="text-align:center;color:#475569;">${p.phcNext}</td>
+                    <td style="text-align:center;color:#475569;">${p.todayPhc}</td>
+                    <td style="text-align:center;" class="score-val">${p.score}</td>
+                    <td style="text-align:right;" class="${p.prize>0?'prize-val':'no-prize'}">${prizeText}</td>
+                </tr>`;
+            }).join('');
+
+            // All players from tracker with season totals
+            const allPlayersRows = players.map(p => {
+                let totalInvested = 0, totalPrize = 0;
+                p.weeks.forEach(w => {
+                    totalInvested += parseFloat(w.invested) || 0;
+                    totalPrize += parseFloat(w.prize) || 0;
+                });
+                return {name: p.name, phc: p.phc || '—', totalInvested, totalPrize};
+            }).sort((a,b) => a.name.localeCompare(b.name)).map((p, i) => {
+                return `
+                <tr>
+                    <td style="color:#1e293b;font-weight:500;">${p.name}</td>
+                    <td style="text-align:center;color:#475569;">${p.phc}</td>
+                    <td style="text-align:right;color:#64748b;">£${p.totalInvested.toFixed(2)}</td>
+                    <td style="text-align:right;" class="${p.totalPrize>0?'prize-val':'no-prize'}">£${p.totalPrize.toFixed(2)}</td>
+                </tr>`;
+            }).join('');
+
+            const podiumPlayers = [
+                {place:'1st', emoji:'🥇', name: results.firstPlace || (thisWeekPlayers[0]?.name), prize: results.firstPlaceMoney || thisWeekPlayers[0]?.prize, color:'#FFD700'},
+                {place:'2nd', emoji:'🥈', name: results.secondPlace || (thisWeekPlayers[1]?.name), prize: results.secondPlaceMoney || thisWeekPlayers[1]?.prize, color:'#C0C0C0'},
+                {place:'3rd', emoji:'🥉', name: results.thirdPlace || (thisWeekPlayers[2]?.name), prize: results.thirdPlaceMoney || thisWeekPlayers[2]?.prize, color:'#CD7F32'}
+            ].filter(p => p.name);
+
+            const podiumHTML = podiumPlayers.map(p => {
+                const podBg = p.color === '#FFD700' ? '#fffbeb' : p.color === '#C0C0C0' ? '#f8fafc' : '#fff7f0';
+                const podBorder = p.color === '#FFD700' ? '#fde68a' : p.color === '#C0C0C0' ? '#e2e8f0' : '#fed7aa';
+                return `<div style="text-align:center;flex:1;min-width:150px;padding:22px 16px;background:${podBg};border:2px solid ${podBorder};border-radius:12px;margin:0 6px;">
+                    <div style="font-size:32px;margin-bottom:8px;">${p.emoji}</div>
+                    <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${p.color === '#FFD700' ? '#92400e' : p.color === '#C0C0C0' ? '#475569' : '#9a3412'};margin-bottom:6px;">${p.place} Place</div>
+                    <div style="font-size:17px;font-weight:700;color:#1e293b;margin-bottom:6px;">${p.name}</div>
+                    ${p.prize ? `<div style="font-size:19px;font-weight:800;color:#16a34a;">£${parseFloat(p.prize).toFixed(2)}</div>` : ''}
+                </div>`;
+            }).join('');
+
+            return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mid-Week Golf Swindle — Week ${weekNumber} Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,700;0,900;1,300&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  @page { size:A4; margin:18mm 14mm; }
+  body {
+    background:#f0f4f8;
+    color:#1e293b;
+    font-family:'Inter','Segoe UI',sans-serif;
+    font-size:13px;
+    line-height:1.6;
+  }
+  .page {
+    max-width:860px;
+    margin:0 auto;
+    background:#ffffff;
+    padding:0 0 48px 0;
+    box-shadow:0 4px 32px rgba(0,0,0,0.10);
+  }
+
+  /* ── HEADER BAND ── */
+  .rpt-header {
+    background:linear-gradient(135deg,#0f3d6e 0%,#1a5c9e 60%,#1e7ab8 100%);
+    color:#ffffff;
+    padding:36px 44px 30px;
+    position:relative;
+    overflow:hidden;
+  }
+  .rpt-header::after {
+    content:'⛳';
+    position:absolute;
+    right:44px;top:50%;transform:translateY(-50%);
+    font-size:72px;opacity:0.45;
+    line-height:1;
+  }
+  .rpt-header-kicker {
+    font-size:10px;font-weight:600;letter-spacing:3px;text-transform:uppercase;
+    color:rgba(255,255,255,0.65);margin-bottom:8px;
+  }
+  .rpt-header-title {
+    font-family:'Merriweather',Georgia,serif;
+    font-size:30px;font-weight:900;letter-spacing:-0.5px;
+    line-height:1.15;margin-bottom:6px;
+  }
+  .rpt-header-sub {
+    font-size:14px;font-weight:300;color:rgba(255,255,255,0.8);margin-bottom:18px;
+  }
+  .rpt-meta-bar {
+    display:flex;gap:0;flex-wrap:wrap;
+    background:rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;
+    border:1px solid rgba(255,255,255,0.15);width:fit-content;
+  }
+  .rpt-meta-item {
+    padding:8px 18px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.75);
+    border-right:1px solid rgba(255,255,255,0.15);white-space:nowrap;
+  }
+  .rpt-meta-item:last-child{border-right:none;}
+  .rpt-meta-item strong{color:#ffffff;font-weight:700;display:block;font-size:13px;}
+
+  /* ── ACCENT BAR ── */
+  .accent-bar{height:4px;background:linear-gradient(90deg,#16a34a,#22c55e,#86efac,#22c55e,#16a34a);}
+
+  /* ── BODY PADDING ── */
+  .rpt-body{padding:32px 44px 0;}
+
+  /* ── SECTION ── */
+  .section{margin-bottom:32px;}
+  .section-hdr{
+    display:flex;align-items:center;gap:10px;
+    margin-bottom:16px;padding-bottom:8px;
+    border-bottom:2px solid #e2e8f0;
+  }
+  .section-badge{
+    background:#0f3d6e;color:#fff;
+    font-size:10px;font-weight:700;letter-spacing:1px;
+    padding:3px 9px;border-radius:20px;text-transform:uppercase;
+    white-space:nowrap;
+  }
+  .section-title{
+    font-family:'Merriweather',Georgia,serif;
+    font-size:16px;font-weight:700;color:#0f3d6e;letter-spacing:-0.2px;
+  }
+  .section-rule{flex:1;height:1px;background:linear-gradient(90deg,#cbd5e1,transparent);}
+
+  /* ── PODIUM ROW ── */
+  .podium-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+
+  /* ── TABLES ── */
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{
+    background:#0f3d6e;color:#ffffff;
+    padding:9px 12px;font-size:10px;font-weight:600;
+    letter-spacing:1px;text-transform:uppercase;
+  }
+  thead th:first-child{border-radius:6px 0 0 0;}
+  thead th:last-child{border-radius:0 6px 0 0;}
+  tbody tr:nth-child(even){background:#f8fafc;}
+  tbody tr:hover{background:#eff6ff;}
+  tbody td{padding:9px 12px;border-bottom:1px solid #e2e8f0;color:#334155;}
+  .pos-gold{color:#b45309;font-weight:800;font-size:14px;}
+  .pos-silver{color:#475569;font-weight:700;font-size:14px;}
+  .pos-bronze{color:#9a3412;font-weight:700;font-size:14px;}
+  .prize-val{color:#15803d;font-weight:700;}
+  .score-val{font-weight:700;color:#0f3d6e;}
+  .no-prize{color:#94a3b8;}
+
+  /* ── RULES GRID ── */
+  .rules-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .rule-item{
+    display:flex;gap:10px;align-items:flex-start;
+    padding:9px 12px;background:#f8fafc;
+    border-left:3px solid #0f3d6e;border-radius:0 6px 6px 0;
+    font-size:12px;color:#475569;line-height:1.5;
+  }
+  .rule-num{color:#0f3d6e;font-weight:700;font-size:11px;margin-top:1px;flex-shrink:0;letter-spacing:0.5px;}
+
+  /* ── FOOTER ── */
+  .rpt-footer{
+    margin:32px 44px 0;padding-top:14px;
+    border-top:1px solid #e2e8f0;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  }
+  .footer-l{font-size:10px;color:#94a3b8;letter-spacing:0.3px;}
+  .footer-seal{
+    font-size:10px;color:#0f3d6e;letter-spacing:2px;
+    text-transform:uppercase;font-weight:600;opacity:0.6;
+  }
+
+  /* ── PRINT BUTTON (hidden on print) ── */
+  .export-btn{
+    position:fixed;bottom:28px;right:28px;z-index:999;
+    background:linear-gradient(135deg,#0f3d6e,#1a5c9e);color:#fff;
+    border:none;padding:12px 22px;border-radius:8px;
+    font-size:13px;font-weight:600;cursor:pointer;
+    box-shadow:0 4px 16px rgba(15,61,110,0.35);
+    transition:transform 0.15s,box-shadow 0.15s;
+  }
+  .export-btn:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(15,61,110,0.45);}
+  @media print{
+    body{background:#fff!important;}
+    .page{box-shadow:none!important;margin:0;max-width:100%;}
+    .rpt-body{padding:20px 24px 0;}
+    .rpt-header{padding:24px 24px 20px;}
+    .export-btn{display:none!important;}
+  }
+  /* Ensure html2canvas captures backgrounds */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="rpt-header">
+    <div class="rpt-header-kicker">Official Competition Record &nbsp;·&nbsp; Week ${weekNumber}</div>
+    <div class="rpt-header-title">Mid-Week Golf Swindle</div>
+    <div class="rpt-header-sub">Executive Summary Report &nbsp;—&nbsp; ${dateText}</div>
+    <div class="rpt-meta-bar">
+      <div class="rpt-meta-item"><strong>${thisWeekPlayers.length}</strong>Competitors</div>
+      <div class="rpt-meta-item"><strong>£${totalPot.toFixed(2)}</strong>Total Pot</div>
+      <div class="rpt-meta-item"><strong>£${totalPrizesGiven.toFixed(2)}</strong>Prizes Awarded</div>
+      <div class="rpt-meta-item"><strong>Week ${weekNumber}</strong>Round</div>
+    </div>
+  </div>
+  <div class="accent-bar"></div>
+
+  <div class="rpt-body">
+
+    <!-- SECTION I: HONOURS -->
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-badge">Section I</div>
+        <div class="section-title">Honours of the Day</div>
+        <div class="section-rule"></div>
+      </div>
+      <div class="podium-row">${podiumHTML}</div>
+    </div>
+
+    <!-- SECTION II: LEADERBOARD -->
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-badge">Section II</div>
+        <div class="section-title">Full Weekly Leaderboard</div>
+        <div class="section-rule"></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center;width:48px;">Pos</th>
+            <th>Player</th>
+            <th style="text-align:center;">PHC Next Time You Play</th>
+            <th style="text-align:center;">PHC Today</th>
+            <th style="text-align:center;">Score</th>
+            <th style="text-align:right;">Prize</th>
+          </tr>
+        </thead>
+        <tbody>${leaderboardRows}</tbody>
+      </table>
+    </div>
+
+    <!-- SECTION III: ALL PLAYERS -->
+    <div class="section" id="section-all-players">
+      <div class="section-hdr">
+        <div class="section-badge">Section III</div>
+        <div class="section-title">All Players — Season Overview</div>
+        <div class="section-rule"></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th style="text-align:center;">PHC Next Time You Play</th>
+            <th style="text-align:right;">Invested Total</th>
+            <th style="text-align:right;">Prize Total</th>
+          </tr>
+        </thead>
+        <tbody>${allPlayersRows}</tbody>
+      </table>
+    </div>
+
+    <!-- SECTION IV: RULES -->
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-badge">Section IV</div>
+        <div class="section-title">Competition Regulations</div>
+        <div class="section-rule"></div>
+      </div>
+      <div class="rules-grid">
+        <div class="rule-item"><span class="rule-num">01</span>Winner Docked 1 Shot from PHC</div>
+        <div class="rule-item"><span class="rule-num">02</span>Runner-up Docked 0.5 Shot from PHC</div>
+        <div class="rule-item"><span class="rule-num">03</span>Third place no PHC cut applied</div>
+        <div class="rule-item"><span class="rule-num">04</span>Exceptional Scores 40 and over additional 2 shot cut applied</div>
+        <div class="rule-item"><span class="rule-num">05</span>Low scores 31 and lower gains 0.5 shot on PHC</div>
+        <div class="rule-item"><span class="rule-num">06</span>Maximum playing PHC 18</div>
+        <div class="rule-item"><span class="rule-num">07</span>Payments made on PGA matrix system</div>
+        <div class="rule-item" style="grid-column:1/-1;"><span class="rule-num">08</span>£5 to be paid into account before start of round. If you do not pay your £5 before the end of round, and come in with a winning score, your card will be discounted. The winning Position will go to next person in line.</div>
+        <div class="rule-item" style="grid-column:1/-1;"><span class="rule-num">09</span>Scorecards need to be completed after 18 holes played, and not amended in clubhouse after play. The exception to this is when scorecard is damaged due to rain.</div>
+      </div>
+    </div>
+
+  </div><!-- /rpt-body -->
+
+  <!-- FOOTER -->
+  <div class="rpt-footer">
+    <div class="footer-l">Mid-Week Golf Swindle &nbsp;·&nbsp; Week ${weekNumber} &nbsp;·&nbsp; Official Record</div>
+    <div class="footer-seal">⛳ Authenticated Report ⛳</div>
+    <div class="footer-l">Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
+  </div>
+
+</div><!-- /page -->
+<button class="export-btn" onclick="window.print()">🖨&nbsp; Print / Save PDF</button>
+</body>
+</html>`;
+        }
+
         // Initialize scorecard when switching to tab
         function initScorecard() {
             setupGlobalScorecardNavigation(); // Set up Enter key navigation
