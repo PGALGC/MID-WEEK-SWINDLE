@@ -8227,21 +8227,39 @@
 
             // (data already gathered above)
 
-            // Build weekly leaderboard
+            // Build weekly leaderboard — sort by results positions first, then score (matches app)
+            const resultsOrder = [
+                results.firstPlace,
+                results.secondPlace,
+                results.thirdPlace,
+                results.fourthPlace
+            ].map(n => (n || '').trim().toLowerCase());
+
             const thisWeekPlayers = players.filter(p => {
                 const wd = p.weeks[currentVisibleWeekIndex];
                 return wd && parseFloat(wd.invested) === 5.0 && wd.score;
             }).map(p => {
                 const wd = p.weeks[currentVisibleWeekIndex];
+                const nameLC = p.name.trim().toLowerCase();
+                const resultsPos = resultsOrder.indexOf(nameLC); // -1 if not in results
                 return {
                     name: p.name,
                     phcNext: p.phc || '-',
                     todayPhc: wd.phc || '-',
                     score: parseFloat(wd.score) || 0,
                     prize: parseFloat(wd.prize) || 0,
-                    invested: parseFloat(wd.invested) || 0
+                    invested: parseFloat(wd.invested) || 0,
+                    resultsPos: resultsPos // 0=1st, 1=2nd, 2=3rd, 3=4th, -1=not in results
                 };
-            }).sort((a,b) => b.score - a.score);
+            }).sort((a, b) => {
+                // Results positions come first (0,1,2,3), then the rest by score descending
+                const aInResults = a.resultsPos >= 0;
+                const bInResults = b.resultsPos >= 0;
+                if (aInResults && bInResults) return a.resultsPos - b.resultsPos;
+                if (aInResults) return -1;
+                if (bInResults) return 1;
+                return b.score - a.score;
+            });
 
             // Assign positions
             thisWeekPlayers.forEach((p, i) => { p.position = i + 1; });
@@ -8287,10 +8305,10 @@
             }).join('');
 
             const podiumPlayers = [
-                {place:'1st', emoji:'🥇', name: results.firstPlace || (thisWeekPlayers[0]?.name), prize: results.firstPlaceMoney || thisWeekPlayers[0]?.prize, color:'#FFD700'},
-                {place:'2nd', emoji:'🥈', name: results.secondPlace || (thisWeekPlayers[1]?.name), prize: results.secondPlaceMoney || thisWeekPlayers[1]?.prize, color:'#C0C0C0'},
-                {place:'3rd', emoji:'🥉', name: results.thirdPlace || (thisWeekPlayers[2]?.name), prize: results.thirdPlaceMoney || thisWeekPlayers[2]?.prize, color:'#CD7F32'}
-            ].filter(p => p.name);
+                {place:'1st', emoji:'🥇', name: results.firstPlace,  prize: results.firstPlaceMoney,  color:'#FFD700'},
+                {place:'2nd', emoji:'🥈', name: results.secondPlace, prize: results.secondPlaceMoney, color:'#C0C0C0'},
+                {place:'3rd', emoji:'🥉', name: results.thirdPlace,  prize: results.thirdPlaceMoney,  color:'#CD7F32'}
+            ].filter(p => p.name && p.name.trim() !== '');
 
             const podiumHTML = podiumPlayers.map(p => {
                 const podBg = p.color === '#FFD700' ? '#fffbeb' : p.color === '#C0C0C0' ? '#f8fafc' : '#fff7f0';
