@@ -2617,6 +2617,10 @@
                 updatePlayerPHC(playerData.id, this.value);
                 saveDataToStorage();
             });
+            phcInput.addEventListener('change', function() {
+                updatePlayerPHC(playerData.id, this.value);
+                saveDataToStorage();
+            });
             phcContainer.appendChild(phcInput);
             
             nameCell.appendChild(phcContainer);
@@ -8072,9 +8076,33 @@
             modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
         }
 
+        function syncPHCFromDOM() {
+            // Sync ALL PHC values from live DOM into trackerData.
+            // Syncs BOTH global p.phc ("PHC Next Time You Play") AND weekly wd.phc ("PHC Today").
+            document.querySelectorAll('#tableBody tr[data-player-id]').forEach(function(row) {
+                const playerId = row.dataset.playerId;
+                const player = trackerData.players.find(function(p) { return String(p.id) === String(playerId); });
+                if (!player) return;
+
+                // Global PHC — "PHC NEXT TIME YOU PLAY" input in the fixed name column
+                const globalPhcInput = row.querySelector('.phc-input-container input');
+                if (globalPhcInput) {
+                    player.phc = globalPhcInput.value;
+                }
+
+                // Weekly PHC — "PHC Today" input in the td.phc-cell column
+                const weekPhcInput = row.querySelector('td.phc-cell input');
+                if (weekPhcInput && player.weeks && player.weeks[currentVisibleWeekIndex] !== undefined) {
+                    player.weeks[currentVisibleWeekIndex].phc = weekPhcInput.value;
+                }
+            });
+            saveDataToStorage();
+        }
+
         function buildReport(format) {
             document.getElementById('reportFormatModal').remove();
             const weekNumber = (currentVisibleWeekIndex || 0) + 1;
+            syncPHCFromDOM(); // Ensure latest DOM PHC values are in trackerData before building report
             const reportHTML = buildReportHTML();
 
             if (format === 'pdf') {
@@ -8217,6 +8245,27 @@
         }
 
         function buildReportHTML() {
+            // --- Sync ALL PHC values from live DOM inputs into trackerData FIRST ---
+            // Syncs BOTH global p.phc ("PHC Next Time You Play") AND weekly wd.phc ("PHC Today").
+            // Ensures values visible on screen are always used, even if 'input' event never fired.
+            document.querySelectorAll('#tableBody tr[data-player-id]').forEach(function(row) {
+                const playerId = row.dataset.playerId;
+                const player = trackerData.players.find(function(p) { return String(p.id) === String(playerId); });
+                if (!player) return;
+
+                // Sync global PHC — the "PHC NEXT TIME YOU PLAY" input in the fixed name column
+                const globalPhcInput = row.querySelector('.phc-input-container input');
+                if (globalPhcInput) {
+                    player.phc = globalPhcInput.value;
+                }
+
+                // Sync weekly PHC — the per-week "PHC Today" cell (td.phc-cell input)
+                const weekPhcInput = row.querySelector('td.phc-cell input');
+                if (weekPhcInput && player.weeks && player.weeks[currentVisibleWeekIndex] !== undefined) {
+                    player.weeks[currentVisibleWeekIndex].phc = weekPhcInput.value;
+                }
+            });
+
             // Gather data from trackerData
             const weeks = trackerData.weeks || [];
             const players = trackerData.players || [];
@@ -8224,8 +8273,6 @@
             const weekNumber = currentVisibleWeekIndex + 1;
             const currentWeek = weeks[currentVisibleWeekIndex] || {};
             const dateText = currentWeek.date ? formatDateForDisplay(currentWeek.date) : new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'long',year:'numeric'});
-
-            // (data already gathered above)
 
             // Build weekly leaderboard — sort by results positions first, then score (matches app)
             const resultsOrder = [
